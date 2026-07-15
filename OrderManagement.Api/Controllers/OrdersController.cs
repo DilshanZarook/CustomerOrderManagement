@@ -3,11 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using OrderManagement.Api.Data;
 using OrderManagement.Api.DTOs;
 using OrderManagement.Api.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace OrderManagement.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class OrdersController : ControllerBase
     {
         private readonly AppDbContext _context;
