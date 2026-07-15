@@ -8,3 +8,4 @@ One thing worth doing now for future sanity: remember to keep the container runn
 
 bashpodman machine start
 podman start sqlserver
+dotnet run
