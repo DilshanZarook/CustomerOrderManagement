@@ -1,16 +1,6 @@
 # CustomerOrderManagement
-company develops business management software.
 
-
-
-FMI :
-One thing worth doing now for future sanity: remember to keep the container running whenever you work on this project going forward. If you restart your Mac or stop Podman, you'll need to run:
-podman ps - Sql server is running or not can be check from this command if status is UP its al good!
-bashpodman machine start
-podman start sqlserver
-dotnet run
-------------------------------------
-# Customer Order Management System
+![alt text](<Screenshot 2026-07-16 at 11.58.36 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.58.57 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.15 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.22 AM.png>)
 
 A simple Customer Order Management System built with ASP.NET Core Web API, Entity Framework Core, and SQL Server. Supports full CRUD for customers and products, and order creation with automatic stock validation and total calculation.
 
@@ -212,4 +202,3 @@ Then open `http://localhost:5077/swagger` to interact with it.
 - Customer and Product deletions are soft-blocked (400 response) rather than cascading, to preserve order history integrity.
 - The connection string and SA password in this repository are for local development only and are not intended for production use.
 
-![alt text](<Screenshot 2026-07-16 at 11.58.36 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.58.57 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.15 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.22 AM.png>)
