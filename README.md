@@ -211,3 +211,5 @@ Then open `http://localhost:5077/swagger` to interact with it.
 - Order totals and unit prices are captured at time of order (from the product's current price), so future product price changes don't retroactively affect historical order totals.
 - Customer and Product deletions are soft-blocked (400 response) rather than cascading, to preserve order history integrity.
 - The connection string and SA password in this repository are for local development only and are not intended for production use.
+
+![alt text](<Screenshot 2026-07-16 at 11.58.36 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.58.57 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.15 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.22 AM.png>)
