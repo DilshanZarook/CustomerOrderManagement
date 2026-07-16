@@ -60,7 +60,14 @@ async function apiCall(path, method, body) {
   try { payload = text ? JSON.parse(text) : null; } catch { payload = text; }
   if (!res.ok) {
     const msg = typeof payload === "string" ? payload : payload?.title || payload?.message || "Request failed";
-    throw new Error(msg);
+    const err = new Error(msg);
+    if (payload && typeof payload === "object" && payload.errors && typeof payload.errors === "object") {
+      err.fieldErrors = {};
+      for (const [field, messages] of Object.entries(payload.errors)) {
+        err.fieldErrors[field.charAt(0).toLowerCase() + field.slice(1)] = Array.isArray(messages) ? messages[0] : String(messages);
+      }
+    }
+    throw err;
   }
   return payload;
 }
@@ -101,16 +108,23 @@ function ConnectionPing() {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, error, children }) {
   return (
     <label className="block mb-3">
       <span className="block text-xs font-medium text-slate-400 mb-1">{label}</span>
       {children}
+      {error && <span className="block text-xs text-rose-400 mt-1">{error}</span>}
     </label>
   );
 }
 
 const inputCls = "w-full bg-slate-950 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500";
+
+function inputClsFor(hasError) {
+  return hasError
+    ? "w-full bg-slate-950 border border-rose-600 rounded-md px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+    : inputCls;
+}
 
 function Drawer({ title, onClose, children }) {
   return (
@@ -156,19 +170,23 @@ function CustomersTab() {
   const [drawer, setDrawer] = useState(null); // { mode: 'add'|'edit', customer }
   const [form, setForm] = useState({ name: "", email: "", phone: "", address: "" });
   const [saveError, setSaveError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const openAdd = () => { setForm({ name: "", email: "", phone: "", address: "" }); setSaveError(null); setDrawer({ mode: "add" }); };
-  const openEdit = (c) => { setForm({ name: c.name, email: c.email, phone: c.phone, address: c.address || "" }); setSaveError(null); setDrawer({ mode: "edit", customer: c }); };
+  const openAdd = () => { setForm({ name: "", email: "", phone: "", address: "" }); setSaveError(null); setFieldErrors({}); setDrawer({ mode: "add" }); };
+  const openEdit = (c) => { setForm({ name: c.name, email: c.email, phone: c.phone, address: c.address || "" }); setSaveError(null); setFieldErrors({}); setDrawer({ mode: "edit", customer: c }); };
 
   const submit = async () => {
-    setSaving(true); setSaveError(null);
+    setSaving(true); setSaveError(null); setFieldErrors({});
     try {
       if (drawer.mode === "add") await apiCall("/customers", "POST", form);
       else await apiCall(`/customers/${drawer.customer.id}`, "PUT", form);
       setDrawer(null);
       reload();
-    } catch (e) { setSaveError(e.message); } finally { setSaving(false); }
+    } catch (e) {
+      if (e.fieldErrors) setFieldErrors(e.fieldErrors);
+      else setSaveError(e.message);
+    } finally { setSaving(false); }
   };
 
   const remove = async (c) => {
@@ -224,10 +242,18 @@ function CustomersTab() {
       {drawer && (
         <Drawer title={drawer.mode === "add" ? "Add customer" : "Edit customer"} onClose={() => setDrawer(null)}>
           {saveError && <Banner>{saveError}</Banner>}
-          <Field label="Name"><input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Email"><input className={inputCls} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></Field>
-          <Field label="Phone"><input className={inputCls} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></Field>
-          <Field label="Address"><input className={inputCls} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /></Field>
+          <Field label="Name" error={fieldErrors.name}>
+            <input className={inputClsFor(fieldErrors.name)} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <Field label="Email" error={fieldErrors.email}>
+            <input className={inputClsFor(fieldErrors.email)} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+          </Field>
+          <Field label="Phone" error={fieldErrors.phone}>
+            <input className={inputClsFor(fieldErrors.phone)} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+          </Field>
+          <Field label="Address" error={fieldErrors.address}>
+            <input className={inputClsFor(fieldErrors.address)} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+          </Field>
           <div className="flex gap-2 mt-4">
             <PrimaryButton onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</PrimaryButton>
             <GhostButton onClick={() => setDrawer(null)}>Cancel</GhostButton>
@@ -245,20 +271,24 @@ function ProductsTab() {
   const [drawer, setDrawer] = useState(null);
   const [form, setForm] = useState({ name: "", price: "", stock: "" });
   const [saveError, setSaveError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const openAdd = () => { setForm({ name: "", price: "", stock: "" }); setSaveError(null); setDrawer({ mode: "add" }); };
-  const openEdit = (p) => { setForm({ name: p.name, price: String(p.price), stock: String(p.stock) }); setSaveError(null); setDrawer({ mode: "edit", product: p }); };
+  const openAdd = () => { setForm({ name: "", price: "", stock: "" }); setSaveError(null); setFieldErrors({}); setDrawer({ mode: "add" }); };
+  const openEdit = (p) => { setForm({ name: p.name, price: String(p.price), stock: String(p.stock) }); setSaveError(null); setFieldErrors({}); setDrawer({ mode: "edit", product: p }); };
 
   const submit = async () => {
-    setSaving(true); setSaveError(null);
+    setSaving(true); setSaveError(null); setFieldErrors({});
     const body = { name: form.name, price: parseFloat(form.price), stock: parseInt(form.stock, 10) };
     try {
       if (drawer.mode === "add") await apiCall("/products", "POST", body);
       else await apiCall(`/products/${drawer.product.id}`, "PUT", body);
       setDrawer(null);
       reload();
-    } catch (e) { setSaveError(e.message); } finally { setSaving(false); }
+    } catch (e) {
+      if (e.fieldErrors) setFieldErrors(e.fieldErrors);
+      else setSaveError(e.message);
+    } finally { setSaving(false); }
   };
 
   const remove = async (p) => {
@@ -299,9 +329,15 @@ function ProductsTab() {
       {drawer && (
         <Drawer title={drawer.mode === "add" ? "Add product" : "Edit product"} onClose={() => setDrawer(null)}>
           {saveError && <Banner>{saveError}</Banner>}
-          <Field label="Name"><input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Price"><input type="number" step="0.01" className={inputCls} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} /></Field>
-          <Field label="Stock"><input type="number" className={inputCls} value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} /></Field>
+          <Field label="Name" error={fieldErrors.name}>
+            <input className={inputClsFor(fieldErrors.name)} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <Field label="Price" error={fieldErrors.price}>
+            <input type="number" step="0.01" className={inputClsFor(fieldErrors.price)} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
+          </Field>
+          <Field label="Stock" error={fieldErrors.stock}>
+            <input type="number" className={inputClsFor(fieldErrors.stock)} value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} />
+          </Field>
           <div className="flex gap-2 mt-4">
             <PrimaryButton onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</PrimaryButton>
             <GhostButton onClick={() => setDrawer(null)}>Cancel</GhostButton>

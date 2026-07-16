@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using OrderManagement.Api.Validation;
 
 namespace OrderManagement.Api.DTOs
 {
@@ -10,7 +11,7 @@ namespace OrderManagement.Api.DTOs
         [Required, EmailAddress, MaxLength(200)]
         public string Email { get; set; } = string.Empty;
 
-        [Required, MaxLength(30)]
+        [PhoneNumber]
         public string Phone { get; set; } = string.Empty;
 
         [MaxLength(300)]
