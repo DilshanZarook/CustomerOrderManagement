@@ -1,6 +1,6 @@
 # CustomerOrderManagement
 
-![alt text](<Screenshot 2026-07-16 at 11.58.36 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.58.57 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.15 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.22 AM.png>)
+![alt text](</Users/amanjanee/Desktop/ Customer Order Management System/InterfaceScreenshot/Screenshot 2026-07-16 at 11.58.36 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.58.57 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.15 AM.png>) ![alt text](<Screenshot 2026-07-16 at 11.59.22 AM.png>)
 
 A simple Customer Order Management System built with ASP.NET Core Web API, Entity Framework Core, and SQL Server. Supports full CRUD for customers and products, and order creation with automatic stock validation and total calculation.
 
