@@ -268,6 +268,7 @@ function CustomersTab() {
 
 function ProductsTab() {
   const { data, loading, error, reload } = useApi("/products");
+  const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
   const [form, setForm] = useState({ name: "", price: "", stock: "" });
   const [saveError, setSaveError] = useState(null);
@@ -297,10 +298,15 @@ function ProductsTab() {
     catch (e) { alert(e.message); }
   };
 
+  const rows = (data || []).filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">{(data || []).length} products</p>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="w-4 h-4 text-slate-500 absolute left-2.5 top-2.5" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name" className={`${inputCls} pl-8`} />
+        </div>
         <PrimaryButton onClick={openAdd}><Plus className="w-4 h-4" /> Add product</PrimaryButton>
       </div>
 
@@ -308,8 +314,8 @@ function ProductsTab() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {loading && <p className="text-slate-500 text-sm col-span-full"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Loading</p>}
-        {!loading && (data || []).length === 0 && <p className="text-slate-500 text-sm col-span-full">No products yet</p>}
-        {(data || []).map(p => (
+        {!loading && rows.length === 0 && <p className="text-slate-500 text-sm col-span-full">No products found</p>}
+        {rows.map(p => (
           <div key={p.id} className="border border-slate-800 rounded-lg p-4 bg-slate-900/40">
             <div className="flex items-start justify-between mb-2">
               <p className="text-slate-100 font-medium">{p.name}</p>
@@ -354,7 +360,8 @@ function OrdersTab() {
   const { data, loading, error, reload } = useApi("/orders");
   const { data: customers } = useApi("/customers");
   const { data: products } = useApi("/products");
-
+  
+  const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(false);
   const [detail, setDetail] = useState(null);
   const [customerId, setCustomerId] = useState("");
@@ -395,10 +402,29 @@ function OrdersTab() {
     } catch (e) { alert(e.message); }
   };
 
+  // Cross-reference each order's customer name against the loaded customers list
+  // so we can also match on phone number, since the order list itself doesn't include phone.
+  const phoneByCustomerName = {};
+  (customers || []).forEach(c => { phoneByCustomerName[c.name] = c.phone; });
+
+  const q = search.trim().toLowerCase();
+  const rows = (data || []).filter(o => {
+    if (!q) return true;
+    const phone = phoneByCustomerName[o.customerName] || "";
+    return (
+      o.customerName.toLowerCase().includes(q) ||
+      String(o.id).includes(q) ||
+      phone.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">{(data || []).length} orders</p>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-500 absolute left-2.5 top-2.5" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by customer name, order ID, or phone" className={`${inputCls} pl-8`} />
+        </div>
         <PrimaryButton onClick={openAdd}><Plus className="w-4 h-4" /> New order</PrimaryButton>
       </div>
 
@@ -416,8 +442,8 @@ function OrdersTab() {
           </thead>
           <tbody>
             {loading && <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-500"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Loading</td></tr>}
-            {!loading && (data || []).length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-500">No orders yet</td></tr>}
-            {(data || []).map(o => (
+            {!loading && rows.length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-500">No orders found</td></tr>}
+            {rows.map(o => (
               <tr key={o.id} onClick={() => openDetail(o)} className="border-t border-slate-800 hover:bg-slate-900/60 cursor-pointer">
                 <td className="px-4 py-2.5 font-mono text-slate-300">#{o.id}</td>
                 <td className="px-4 py-2.5 text-slate-100">{o.customerName}</td>
@@ -440,16 +466,29 @@ function OrdersTab() {
           </Field>
 
           <span className="block text-xs font-medium text-slate-400 mb-1.5 mt-4">Items</span>
-          {lines.map((l, i) => (
-            <div key={i} className="flex gap-2 mb-2">
-              <select className={`${inputCls} flex-1`} value={l.productId} onChange={e => updateLine(i, "productId", e.target.value)}>
-                <option value="">Select product</option>
-                {(products || []).map(p => <option key={p.id} value={p.id}>{p.name} · {money(p.price)} · {p.stock} left</option>)}
-              </select>
-              <input type="number" min="1" className={`${inputCls} w-16`} value={l.quantity} onChange={e => updateLine(i, "quantity", e.target.value)} />
-              <button onClick={() => removeLine(i)} className="text-slate-500 hover:text-rose-400 px-1"><X className="w-4 h-4" /></button>
-            </div>
-          ))}
+          {lines.map((l, i) => {
+            const selected = (products || []).find(p => String(p.id) === String(l.productId));
+            return (
+              <div key={i} className="mb-3">
+                <div className="flex gap-2">
+                  <select className={`${inputCls} flex-1 min-w-0`} value={l.productId} onChange={e => updateLine(i, "productId", e.target.value)}>
+                    <option value="">Select product</option>
+                    {(products || []).map(p => <option key={p.id} value={p.id}>{p.name} — {money(p.price)}</option>)}
+                  </select>
+                  <input type="number" min="1" className={`${inputCls} w-14 text-center px-1 shrink-0`} value={l.quantity} onChange={e => updateLine(i, "quantity", e.target.value)} />
+                  <button onClick={() => removeLine(i)} className="text-slate-500 hover:text-rose-400 px-1 shrink-0"><X className="w-4 h-4" /></button>
+                </div>
+                {selected && (
+                  <div className="flex items-center justify-between mt-1.5 px-3 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/20">
+                    <span className="text-sm text-amber-300 font-medium truncate">{selected.name}</span>
+                    <span className={`text-xs font-mono shrink-0 ml-2 ${selected.stock < l.quantity ? "text-rose-400" : "text-slate-400"}`}>
+                      {selected.stock} in stock
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           <GhostButton onClick={addLine} className="mb-4"><Plus className="w-3.5 h-3.5" /> Add item</GhostButton>
 
           <div className="border-t border-slate-800 pt-3 mb-4 flex items-center justify-between">
