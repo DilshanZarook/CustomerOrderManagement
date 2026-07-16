@@ -89,7 +89,9 @@ namespace OrderManagement.Api.Controllers
         }
 
         // PUT /api/customers/5
+        // PUT /api/customers/5
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> Update(int id, CustomerUpdateDto dto)
         {
             var customer = await _context.Customers.FindAsync(id);
@@ -109,7 +111,9 @@ namespace OrderManagement.Api.Controllers
         }
 
         // DELETE /api/customers/5
+        // DELETE /api/customers/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
             var customer = await _context.Customers.FindAsync(id);
@@ -122,5 +126,6 @@ namespace OrderManagement.Api.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
+        
     }
 }

@@ -11,6 +11,8 @@ namespace OrderManagement.Api.Data
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Order> Orders => Set<Order>();
         public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+        public DbSet<User> Users => Set<User>();
+        public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -36,6 +38,12 @@ namespace OrderManagement.Api.Data
                 .WithMany()
                 .HasForeignKey(oi => oi.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<User>().HasData(
+                new User { Id = 1, Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"), Role = "Admin" },
+                new User { Id = 2, Username = "sales", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Sales@123"), Role = "Salesperson" },
+                new User { Id = 3, Username = "manager", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Manager@123"), Role = "Manager" }
+            );
         }
     }
 }

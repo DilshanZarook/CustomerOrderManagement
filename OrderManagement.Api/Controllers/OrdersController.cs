@@ -124,5 +124,85 @@ namespace OrderManagement.Api.Controllers
                 throw;
             }
         }
+        [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<ActionResult> Update(int id, OrderCreateDto dto)
+        {
+            var order = await _context.Orders.Include(o => o.OrderItems).FirstOrDefaultAsync(o => o.Id == id);
+            if (order == null) return NotFound($"Order with id {id} not found.");
+
+            var customer = await _context.Customers.FindAsync(dto.CustomerId);
+            if (customer == null) return BadRequest($"Customer with id {dto.CustomerId} does not exist.");
+
+            var productIds = dto.Items.Select(i => i.ProductId).ToList();
+            var products = await _context.Products.Where(p => productIds.Contains(p.Id)).ToListAsync();
+            if (products.Count != productIds.Distinct().Count())
+                return BadRequest("One or more products do not exist.");
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // Restore stock from the current line items before applying the new ones
+                foreach (var oldItem in order.OrderItems)
+                {
+                    var product = await _context.Products.FindAsync(oldItem.ProductId);
+                    if (product != null) product.Stock += oldItem.Quantity;
+                }
+
+                // Validate against the new requested quantities (stock now reflects the restoration above)
+                foreach (var item in dto.Items)
+                {
+                    var product = products.First(p => p.Id == item.ProductId);
+                    if (product.Stock < item.Quantity)
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest($"Insufficient stock for '{product.Name}'. Available: {product.Stock}, requested: {item.Quantity}.");
+                    }
+                }
+
+                _context.OrderItems.RemoveRange(order.OrderItems);
+
+                decimal total = 0;
+                foreach (var item in dto.Items)
+                {
+                    var product = products.First(p => p.Id == item.ProductId);
+                    product.Stock -= item.Quantity;
+                    total += product.Price * item.Quantity;
+                    _context.OrderItems.Add(new OrderItem { OrderId = order.Id, ProductId = product.Id, Quantity = item.Quantity, UnitPrice = product.Price });
+                }
+
+                order.CustomerId = dto.CustomerId;
+                order.Total = total;
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return NoContent();
+            }
+            catch { await transaction.RollbackAsync(); throw; }
+        }
+
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var order = await _context.Orders.Include(o => o.OrderItems).FirstOrDefaultAsync(o => o.Id == id);
+            if (order == null) return NotFound($"Order with id {id} not found.");
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                foreach (var item in order.OrderItems)
+                {
+                    var product = await _context.Products.FindAsync(item.ProductId);
+                    if (product != null) product.Stock += item.Quantity;
+                }
+                _context.OrderItems.RemoveRange(order.OrderItems);
+                _context.Orders.Remove(order);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return NoContent();
+            }
+            catch { await transaction.RollbackAsync(); throw; }
+        }
     }
 }

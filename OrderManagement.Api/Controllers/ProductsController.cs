@@ -44,6 +44,7 @@ namespace OrderManagement.Api.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> Update(int id, ProductUpdateDto dto)
         {
             var product = await _context.Products.FindAsync(id);
@@ -58,6 +59,7 @@ namespace OrderManagement.Api.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
             var product = await _context.Products.FindAsync(id);

@@ -83,6 +83,9 @@ app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 
+//middleware for audit logging
+app.UseMiddleware<OrderManagement.Api.Middleware.AuditLoggingMiddleware>();
+
 //middle ware for exception handling
 app.UseMiddleware<OrderManagement.Api.Middleware.ExceptionMiddleware>();
 
