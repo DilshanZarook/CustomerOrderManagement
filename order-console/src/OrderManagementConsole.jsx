@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Users, Package, ClipboardList, Plus, Pencil, Trash2, X, Search, Circle, AlertTriangle, Loader2, LogOut, Lock } from "lucide-react";
+import { Users, Package, ClipboardList, Plus, Pencil, Trash2, X, Search, Circle, AlertTriangle, Loader2, LogOut, Lock, ScrollText } from "lucide-react";
 
 const API_BASE = "http://localhost:5077/api";
 const TOKEN_KEY = "orderConsole.token";
@@ -10,6 +10,14 @@ function getToken() {
 function setToken(token) {
   if (token) localStorage.setItem(TOKEN_KEY, token);
   else localStorage.removeItem(TOKEN_KEY);
+}
+function getSession() {
+  try { return JSON.parse(localStorage.getItem("orderConsole.session") || "null"); }
+  catch { return null; }
+}
+function setSession(session) {
+  if (session) localStorage.setItem("orderConsole.session", JSON.stringify(session));
+  else localStorage.removeItem("orderConsole.session");
 }
 
 // Fired whenever a request comes back 401, so the app shell can drop back to the login screen
@@ -164,7 +172,9 @@ function GhostButton({ children, className = "", ...props }) {
 
 /* ---------------- Customers ---------------- */
 
-function CustomersTab() {
+function CustomersTab({ role }) {
+  const canEdit = role === "Admin" || role === "Manager";
+  const canDelete = role === "Admin";
   const { data, loading, error, reload } = useApi("/customers");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null); // { mode: 'add'|'edit', customer }
@@ -230,8 +240,8 @@ function CustomersTab() {
                 <td className="px-4 py-2.5 text-slate-400 font-mono text-xs">{c.phone}</td>
                 <td className="px-4 py-2.5 text-slate-400">{c.address || "—"}</td>
                 <td className="px-4 py-2.5 text-right">
-                  <button onClick={() => openEdit(c)} className="text-slate-500 hover:text-amber-400 p-1"><Pencil className="w-4 h-4" /></button>
-                  <button onClick={() => remove(c)} className="text-slate-500 hover:text-rose-400 p-1"><Trash2 className="w-4 h-4" /></button>
+                  {canEdit && <button onClick={() => openEdit(c)} className="text-slate-500 hover:text-amber-400 p-1"><Pencil className="w-4 h-4" /></button>}
+                  {canDelete && <button onClick={() => remove(c)} className="text-slate-500 hover:text-rose-400 p-1"><Trash2 className="w-4 h-4" /></button>}
                 </td>
               </tr>
             ))}
@@ -266,7 +276,9 @@ function CustomersTab() {
 
 /* ---------------- Products ---------------- */
 
-function ProductsTab() {
+function ProductsTab({ role }) {
+  const canEdit = role === "Admin" || role === "Manager";
+  const canDelete = role === "Admin";
   const { data, loading, error, reload } = useApi("/products");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
@@ -320,8 +332,8 @@ function ProductsTab() {
             <div className="flex items-start justify-between mb-2">
               <p className="text-slate-100 font-medium">{p.name}</p>
               <div className="flex gap-1">
-                <button onClick={() => openEdit(p)} className="text-slate-500 hover:text-amber-400 p-1"><Pencil className="w-3.5 h-3.5" /></button>
-                <button onClick={() => remove(p)} className="text-slate-500 hover:text-rose-400 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                {canEdit && <button onClick={() => openEdit(p)} className="text-slate-500 hover:text-amber-400 p-1"><Pencil className="w-3.5 h-3.5" /></button>}
+                {canDelete && <button onClick={() => remove(p)} className="text-slate-500 hover:text-rose-400 p-1"><Trash2 className="w-3.5 h-3.5" /></button>}
               </div>
             </div>
             <p className="font-mono text-lg text-slate-100">{money(p.price)}</p>
@@ -356,13 +368,17 @@ function ProductsTab() {
 
 /* ---------------- Orders ---------------- */
 
-function OrdersTab() {
+function OrdersTab({ role }) {
+  const canEdit = role === "Admin" || role === "Manager";
+  const canDelete = role === "Admin";
+
   const { data, loading, error, reload } = useApi("/orders");
   const { data: customers } = useApi("/customers");
   const { data: products } = useApi("/products");
-  
+
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [customerId, setCustomerId] = useState("");
   const [lines, setLines] = useState([{ productId: "", quantity: 1 }]);
@@ -370,7 +386,17 @@ function OrdersTab() {
   const [saving, setSaving] = useState(false);
 
   const openAdd = () => {
+    setEditingOrderId(null);
     setCustomerId(""); setLines([{ productId: "", quantity: 1 }]); setSaveError(null); setDrawer(true);
+  };
+
+  const openEditOrder = (orderDetail) => {
+    setEditingOrderId(orderDetail.id);
+    setCustomerId(String(orderDetail.customer.id));
+    setLines(orderDetail.items.map(it => ({ productId: String(it.productId), quantity: it.quantity })));
+    setSaveError(null);
+    setDetail(null);
+    setDrawer(true);
   };
 
   const addLine = () => setLines([...lines, { productId: "", quantity: 1 }]);
@@ -389,8 +415,10 @@ function OrdersTab() {
       items: lines.filter(l => l.productId).map(l => ({ productId: parseInt(l.productId, 10), quantity: parseInt(l.quantity, 10) })),
     };
     try {
-      await apiCall("/orders", "POST", body);
+      if (editingOrderId) await apiCall(`/orders/${editingOrderId}`, "PUT", body);
+      else await apiCall("/orders", "POST", body);
       setDrawer(false);
+      setEditingOrderId(null);
       reload();
     } catch (e) { setSaveError(e.message); } finally { setSaving(false); }
   };
@@ -399,6 +427,15 @@ function OrdersTab() {
     try {
       const d = await apiCall(`/orders/${o.id}`, "GET");
       setDetail(d);
+    } catch (e) { alert(e.message); }
+  };
+
+  const deleteOrder = async (orderDetail) => {
+    if (!confirm(`Delete order #${orderDetail.id}? This restores its stock.`)) return;
+    try {
+      await apiCall(`/orders/${orderDetail.id}`, "DELETE");
+      setDetail(null);
+      reload();
     } catch (e) { alert(e.message); }
   };
 
@@ -456,7 +493,7 @@ function OrdersTab() {
       </div>
 
       {drawer && (
-        <Drawer title="New order" onClose={() => setDrawer(false)}>
+        <Drawer title={editingOrderId ? `Edit order #${editingOrderId}` : "New order"} onClose={() => { setDrawer(false); setEditingOrderId(null); }}>
           {saveError && <Banner>{saveError}</Banner>}
           <Field label="Customer">
             <select className={inputCls} value={customerId} onChange={e => setCustomerId(e.target.value)}>
@@ -497,7 +534,9 @@ function OrdersTab() {
           </div>
 
           <div className="flex gap-2">
-            <PrimaryButton onClick={submit} disabled={saving || !customerId}>{saving ? "Placing…" : "Place order"}</PrimaryButton>
+            <PrimaryButton onClick={submit} disabled={saving || !customerId}>
+              {saving ? (editingOrderId ? "Saving…" : "Placing…") : (editingOrderId ? "Save changes" : "Place order")}
+            </PrimaryButton>
             <GhostButton onClick={() => setDrawer(false)}>Cancel</GhostButton>
           </div>
         </Drawer>
@@ -532,10 +571,16 @@ function OrdersTab() {
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between border-t border-slate-800 pt-3">
+          <div className="flex items-center justify-between border-t border-slate-800 pt-3 mb-4">
             <span className="text-sm text-slate-400">Order total</span>
             <span className="font-mono text-xl text-amber-400">{money(detail.total)}</span>
           </div>
+          {(canEdit || canDelete) && (
+            <div className="flex gap-2">
+              {canEdit && <GhostButton onClick={() => openEditOrder(detail)}><Pencil className="w-3.5 h-3.5" /> Edit order</GhostButton>}
+              {canDelete && <GhostButton onClick={() => deleteOrder(detail)} className="text-rose-400 border-rose-900 hover:border-rose-600"><Trash2 className="w-3.5 h-3.5" /> Delete order</GhostButton>}
+            </div>
+          )}
         </Drawer>
       )}
     </div>
@@ -565,6 +610,7 @@ function LoginScreen({ onLoggedIn }) {
       }
       const data = await res.json();
       setToken(data.token);
+      setSession({ username: data.username, role: data.role });
       onLoggedIn();
     } catch (e2) {
       setError(e2.message);
@@ -599,29 +645,87 @@ function LoginScreen({ onLoggedIn }) {
   );
 }
 
+/* ---------------- Activity Logs (Admin only) ---------------- */
+
+function LogsTab() {
+  const { data, loading, error, reload } = useApi("/auditlogs");
+
+  const actionColor = (action) => {
+    if (action === "Create") return "text-emerald-400";
+    if (action === "Update") return "text-amber-400";
+    if (action === "Delete") return "text-rose-400";
+    return "text-slate-400";
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-slate-500">{(data || []).length} recorded actions</p>
+        <GhostButton onClick={reload}>Refresh</GhostButton>
+      </div>
+
+      {error && <Banner>{error}</Banner>}
+
+      <div className="border border-slate-800 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-900 text-left text-xs text-slate-500 uppercase tracking-wide">
+              <th className="px-4 py-2.5 font-medium">User</th>
+              <th className="px-4 py-2.5 font-medium">Role</th>
+              <th className="px-4 py-2.5 font-medium">Action</th>
+              <th className="px-4 py-2.5 font-medium">Entity</th>
+              <th className="px-4 py-2.5 font-medium">Details</th>
+              <th className="px-4 py-2.5 font-medium text-right">When</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Loading</td></tr>}
+            {!loading && (data || []).length === 0 && <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">No activity recorded yet</td></tr>}
+            {(data || []).map(log => (
+              <tr key={log.id} className="border-t border-slate-800">
+                <td className="px-4 py-2.5 text-slate-100">{log.username}</td>
+                <td className="px-4 py-2.5 text-slate-400 text-xs">{log.role}</td>
+                <td className={`px-4 py-2.5 font-medium ${actionColor(log.action)}`}>{log.action}</td>
+                <td className="px-4 py-2.5 text-slate-300 capitalize">{log.entity}{log.entityId ? ` #${log.entityId}` : ""}</td>
+                <td className="px-4 py-2.5 text-slate-500 text-xs">{log.details}</td>
+                <td className="px-4 py-2.5 text-right font-mono text-slate-400 text-xs">{new Date(log.timestamp).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- App shell ---------------- */
 
 const TABS = [
-  { key: "customers", label: "Customers", icon: Users },
-  { key: "products", label: "Products", icon: Package },
-  { key: "orders", label: "Orders", icon: ClipboardList },
+  { key: "customers", label: "Customers", icon: Users, roles: ["Admin", "Salesperson", "Manager"] },
+  { key: "products", label: "Products", icon: Package, roles: ["Admin", "Salesperson", "Manager"] },
+  { key: "orders", label: "Orders", icon: ClipboardList, roles: ["Admin", "Salesperson", "Manager"] },
+  { key: "logs", label: "Activity Logs", icon: ScrollText, roles: ["Admin"] },
 ];
 
 export default function OrderManagementConsole() {
   const [tab, setTab] = useState("customers");
   const [authed, setAuthed] = useState(() => !!getToken());
+  const session = getSession();
 
   useEffect(() => {
-    const onUnauthorized = () => { setToken(null); setAuthed(false); };
+    const onUnauthorized = () => { setToken(null); setSession(null); setAuthed(false); };
     window.addEventListener(AUTH_EVENT, onUnauthorized);
     return () => window.removeEventListener(AUTH_EVENT, onUnauthorized);
   }, []);
 
-  const logout = () => { setToken(null); setAuthed(false); };
+  const logout = () => { setToken(null); setSession(null); setAuthed(false); };
 
   if (!authed) {
     return <LoginScreen onLoggedIn={() => setAuthed(true)} />;
   }
+
+  const role = session?.role || "Salesperson";
+  const visibleTabs = TABS.filter(t => t.roles.includes(role));
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 flex">
@@ -631,7 +735,7 @@ export default function OrderManagementConsole() {
           <p className="text-xs text-slate-500 mt-0.5">Customer Order Management</p>
         </div>
         <nav className="flex-1 py-3">
-          {TABS.map(t => {
+          {visibleTabs.map(t => {
             const Icon = t.icon;
             const active = tab === t.key;
             return (
@@ -650,6 +754,12 @@ export default function OrderManagementConsole() {
         </nav>
         <div className="px-5 py-4 border-t border-slate-800 space-y-3">
           <ConnectionPing />
+          {session && (
+            <div className="text-xs">
+              <p className="text-slate-300 font-medium">{session.username}</p>
+              <p className="text-slate-500">{session.role}</p>
+            </div>
+          )}
           <button onClick={logout} className="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-rose-400 transition">
             <LogOut className="w-3.5 h-3.5" /> Sign out
           </button>
@@ -664,10 +774,12 @@ export default function OrderManagementConsole() {
           {tab === "customers" && "Manage customer records"}
           {tab === "products" && "Manage catalog and stock levels"}
           {tab === "orders" && "Place and review orders"}
+          {tab === "logs" && "Every create, edit, and delete action across the system"}
         </p>
-        {tab === "customers" && <CustomersTab />}
-        {tab === "products" && <ProductsTab />}
-        {tab === "orders" && <OrdersTab />}
+        {tab === "customers" && <CustomersTab role={role} />}
+        {tab === "products" && <ProductsTab role={role} />}
+        {tab === "orders" && <OrdersTab role={role} />}
+        {tab === "logs" && <LogsTab />}
       </main>
     </div>
   );
